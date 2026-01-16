@@ -1,5 +1,6 @@
 package com.Mishrajee.journalApp.Config;
 
+import com.Mishrajee.journalApp.Filter.JwtFilter;
 import com.Mishrajee.journalApp.Service.UserDetailsServiceImpl;
 import jakarta.servlet.FilterChain;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -25,27 +27,26 @@ public class SpringSecurity {
     @Autowired
     private UserDetailsServiceImpl userDetailsService;
 
+    @Autowired
+    private JwtFilter jwtFilter;
+
     public SpringSecurity(UserDetailsServiceImpl userDetailsService) {
         this.userDetailsService = userDetailsService;
     }
 
     @Bean
-    protected SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception{
-        http
-                .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-        )
-                .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/admin/**").hasRole("Admin")
-                .requestMatchers("/journal/**","/user/**")
-                .authenticated().anyRequest().permitAll()
-        )
-                .userDetailsService(userDetailsService)
-                .httpBasic(Customizer.withDefaults());
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-        return http.build();
+        return http.authorizeHttpRequests(request -> request
+                        .requestMatchers("/public/**").permitAll()
+                        .requestMatchers("/journal/**", "/user/**").authenticated()
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .anyRequest().authenticated())
+                .csrf(AbstractHttpConfigurer::disable)
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .build();
     }
+
 
     @Bean
     public AuthenticationManager authenticationManager(
@@ -58,5 +59,9 @@ public class SpringSecurity {
         return new BCryptPasswordEncoder();
     }
 
+    @Bean
+    public AuthenticationManager authenticationManagerBean(AuthenticationConfiguration auth)throws Exception{
+        return auth.getAuthenticationManager();
+    }
 
 }
